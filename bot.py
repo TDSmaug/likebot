@@ -143,7 +143,7 @@ def entry():
         print('Wrong action!')
 
 
-updater = Updater(token='1279945411:AAHjYiz3qNpYIdHcC-2DowynqE0_QYt4Q6g', use_context=True)
+updater = Updater(token='TOKEN', use_context=True)
 dispatcher = updater.dispatcher
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
