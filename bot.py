@@ -1,3 +1,5 @@
+from telegram.ext import *
+import logging
 import json
 import os
 
@@ -33,15 +35,28 @@ def add_film(title):
         write_json(film)
 
 
-def status(view):
+# def status(view):
+#     if os.stat(filename).st_size != 0:
+#         for i in outfilms['films']:
+#             if view == str(i['status']):
+#                 print('{} : {}'.format(str(i['name']), str(i['status'])))
+#             elif view == 'all':
+#                 print('{} : {}'.format(str(i['name']), str(i['status'])))
+#     else:
+#         print('No films yet. Please add!')
+
+def status(update, context, view):
     if os.stat(filename).st_size != 0:
         for i in outfilms['films']:
             if view == str(i['status']):
-                print('{} : {}'.format(str(i['name']), str(i['status'])))
+                context.bot.send_message(chat_id=update.effective_chat.id,
+                                         text='{} : {}'.format(str(i['name']), str(i['status'])))
             elif view == 'all':
-                print('{} : {}'.format(str(i['name']), str(i['status'])))
-    else:
-        print('No films yet. Please add!')
+                context.bot.send_message(chat_id=update.effective_chat.id,
+                                         text='{} : {}'.format(str(i['name']), str(i['status'])))
+            else:
+                context.bot.send_message(chat_id=update.effective_chat.id,
+                                         text='No films yet. Please add!')
 
 
 def remove_film(filmtitle):
@@ -128,4 +143,18 @@ def entry():
         print('Wrong action!')
 
 
-entry()
+updater = Updater(token='1279945411:AAHjYiz3qNpYIdHcC-2DowynqE0_QYt4Q6g', use_context=True)
+dispatcher = updater.dispatcher
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+
+def start(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text='MyMsg')
+
+
+start_handler = CommandHandler('start', start)
+status_handler = CommandHandler('status', status('all'))
+dispatcher.add_handler(start_handler)
+dispatcher.add_handler(status_handler)
+
+updater.start_polling()
