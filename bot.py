@@ -1,160 +1,145 @@
-from telegram.ext import *
 import logging
-import json
-import os
 
-filename = 'my_films.json'
+from telegram import (InlineKeyboardMarkup, InlineKeyboardButton)
+from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
+                          ConversationHandler, CallbackQueryHandler)
 
-if os.stat(filename).st_size != 0:
-    with open(filename, 'r') as uptodatefilms:
-        outfilms = json.load(uptodatefilms)
-    allnames = []
-    for k in outfilms['films']:
-        allnames.append(str(k['name']))
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
 
+logger = logging.getLogger(__name__)
 
-def write_json(data):
-    with open(filename, 'w') as f:
-        json.dump(data, f, indent=4)
-
-
-def add_film(title):
-    film = {'films': []}
-    film['films'].append({
-        'name': title,
-        'status': 'todo'
-    })
-
-    if os.stat(filename).st_size != 0:
-        temp = outfilms['films']
-        for p in film['films']:
-            temp.append(p)
-        write_json(outfilms)
-
-    else:
-        write_json(film)
-
-
-# def status(view):
-#     if os.stat(filename).st_size != 0:
-#         for i in outfilms['films']:
-#             if view == str(i['status']):
-#                 print('{} : {}'.format(str(i['name']), str(i['status'])))
-#             elif view == 'all':
-#                 print('{} : {}'.format(str(i['name']), str(i['status'])))
-#     else:
-#         print('No films yet. Please add!')
-
-def status(update, context, view):
-    if os.stat(filename).st_size != 0:
-        for i in outfilms['films']:
-            if view == str(i['status']):
-                context.bot.send_message(chat_id=update.effective_chat.id,
-                                         text='{} : {}'.format(str(i['name']), str(i['status'])))
-            elif view == 'all':
-                context.bot.send_message(chat_id=update.effective_chat.id,
-                                         text='{} : {}'.format(str(i['name']), str(i['status'])))
-            else:
-                context.bot.send_message(chat_id=update.effective_chat.id,
-                                         text='No films yet. Please add!')
-
-
-def remove_film(filmtitle):
-
-    if filmtitle in allnames:
-        for i in outfilms['films'][:]:
-            if str(i['name']) == filmtitle:
-                outfilms['films'].remove(i)
-        write_json(outfilms)
-        print('"{}" has been removed!'.format(filmtitle))
-
-    else:
-        print('"{}" does not exists!'.format(filmtitle))
-
-
-def edit_title(filmtitle):
-
-    if filmtitle in allnames:
-        newName = None
-        for i in outfilms['films']:
-            if str(i['name']) == filmtitle:
-                print('Name: {}'.format(str(i['name'])))
-                newName = input('Enter new name: ')
-                i['name'] = newName
-        write_json(outfilms)
-        print('"{}" has been edited to "{}"!'.format(filmtitle, newName))
-
-    else:
-        print('"{}" does not exists!'.format(filmtitle))
-
-
-def change_status(filmtitle):
-
-    if filmtitle in allnames:
-        newStatus = None
-        for i in outfilms['films']:
-            if str(i['name']) == filmtitle:
-                if str(i['status']) == 'todo':
-                    i['status'] = 'done'
-                elif str(i['status']) == 'done':
-                    i['status'] = 'todo'
-                newStatus = str(i['status'])
-        write_json(outfilms)
-        print('"{}"`s status has been changed to "{}"!'.format(filmtitle, newStatus))
-
-    else:
-        print('"{}" does not exists!'.format(filmtitle))
-
-
-def entry():
-    status('all')
-    action = input('\nPlease chose an action :'
-                   '\ncheck todo'
-                   '\ncheck done'
-                   '\nadd film'
-                   '\nremove film'
-                   '\nedit film'
-                   '\nstatus\n: ')
-
-    if action == 'check done':
-        status('done')
-
-    elif action == 'check todo':
-        status('todo')
-
-    elif action == 'add film':
-        filmTitle = input("Title: ")
-        add_film(filmTitle.title())
-        print('Film "{}" has been added!\n'.format(filmTitle.title()))
-
-    elif action == 'remove film':
-        toRemoveFilm = input("Title to remove: ")
-        remove_film(toRemoveFilm.title())
-
-    elif action == 'edit film':
-        toEditTitle = input("Title to edit: ")
-        edit_title(toEditTitle)
-
-    elif action == 'status':
-        toEditTitle = input("Title to change status: ")
-        change_status(toEditTitle)
-
-    else:
-        print('Wrong action!')
-
-
-updater = Updater(token='TOKEN', use_context=True)
-dispatcher = updater.dispatcher
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+TOKEN = open('token.txt', 'r')
+ADD, SHOW, DELETE = map(chr, range(3))
+TYPE, SELECT_SHOW, STOP = map(chr, range(3, 6))
+SHOW_ALL, SHOW_DONE, SHOW_TODO, START_OVER, SELECTING_ACTION, CURRENT_FEATURE = map(chr, range(6, 12))
+END = ConversationHandler.END
 
 
 def start(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text='MyMsg')
+    """Send message on `/start`."""
+    text = 'You may add/delete a film or show existing ones. To abort, simply type /stop.'
+    buttons = [[
+        InlineKeyboardButton(text='Add film', callback_data=str(ADD)),
+        InlineKeyboardButton(text='Delete film', callback_data=str(DELETE))
+    ], [
+        InlineKeyboardButton(text='Show films', callback_data=str(SHOW)),
+        InlineKeyboardButton(text='Done', callback_data=str(END))
+    ]]
+
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    if context.user_data.get(START_OVER):
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+    else:
+        update.message.reply_text('Hi, I\'m S&B bot and here to help manage you film data.')
+        update.message.reply_text(text=text, reply_markup=keyboard)
+
+    context.user_data[START_OVER] = False
+    return SELECTING_ACTION
 
 
-start_handler = CommandHandler('start', start)
-status_handler = CommandHandler('status', status('all'))
-dispatcher.add_handler(start_handler)
-dispatcher.add_handler(status_handler)
+def select_show(update, context):
+    """Choose category to show."""
+    text = 'Chose what to show:'
+    buttons = [[
+        InlineKeyboardButton(text=u'\U00002705', callback_data=str(SHOW_DONE)),
+        InlineKeyboardButton(text=u'\U0000274C', callback_data=str(SHOW_TODO))
+    ], [
+        InlineKeyboardButton(text='All', callback_data=str(SHOW_ALL)),
+        InlineKeyboardButton(text='Back', callback_data=str(END))
+    ]]
 
-updater.start_polling()
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    update.callback_query.answer()
+    update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+
+    return SELECT_SHOW
+
+
+def end_second_level(update, context):
+    """Return to top level conversation."""
+    context.user_data[START_OVER] = True
+    start(update, context)
+
+    return END
+
+
+def stop(update, context):
+    """End Conversation by command."""
+    update.message.reply_text('Okay, bye.')
+
+    return END
+
+
+def stop_nested(update, context):
+    """Completely end conversation from within nested conversation."""
+    update.message.reply_text('Okay, bye.')
+
+    return STOP
+
+
+def end(update, context):
+    """End conversation from InlineKeyboardButton."""
+    update.callback_query.answer()
+
+    text = 'See you!'
+    update.callback_query.edit_message_text(text=text)
+
+    return END
+
+
+def main():
+
+    updater = Updater(str(TOKEN.read()), use_context=True)
+
+    dp = updater.dispatcher
+
+    add_member_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(select_show,
+                                           pattern='^' + str(SHOW) + '$')],
+        states={},
+
+        fallbacks=[
+            CallbackQueryHandler(end_second_level, pattern='^' + str(END) + '$'),
+            CommandHandler('stop', stop_nested)
+        ],
+
+        map_to_parent={
+            # Return to top level menu
+            END: SELECTING_ACTION,
+            # End conversation alltogether
+            STOP: END,
+        }
+    )
+
+    selection_handlers = [
+        add_member_conv,
+        CallbackQueryHandler(end, pattern='^' + str(END) + '$'),
+    ]
+
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+
+        states={
+            SHOW: [CallbackQueryHandler(start, pattern='^' + str(END) + '$')],
+            SELECTING_ACTION: selection_handlers,
+            SELECT_SHOW: selection_handlers,
+            STOP: [CommandHandler('start', start)],
+        },
+
+        fallbacks=[CommandHandler('stop', stop)],
+    )
+
+    dp.add_handler(conv_handler)
+
+    updater.start_polling()
+
+    updater.idle()
+
+
+if __name__ == '__main__':
+    main()
+
