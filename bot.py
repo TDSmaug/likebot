@@ -67,6 +67,25 @@ def end_second_level(update, context):
     return END
 
 
+def show_content(update, context):
+    text = 'Some films:'
+    buttons = [[
+        InlineKeyboardButton(text='Back', callback_data=str(END))
+    ]]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    update.callback_query.answer()
+    update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+
+    return SHOW
+
+
+def end_showing(update, context):
+    select_show(update, context)
+
+    return END
+
+
 def stop(update, context):
     """End Conversation by command."""
     update.message.reply_text('Okay, bye.')
@@ -92,15 +111,34 @@ def end(update, context):
 
 
 def main():
-
     updater = Updater(str(TOKEN.read()), use_context=True)
 
     dp = updater.dispatcher
 
-    add_member_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(select_show,
-                                           pattern='^' + str(SHOW) + '$')],
+    show_titles = ConversationHandler(
+        entry_points=[CallbackQueryHandler(show_content, pattern='^' + str(SHOW_ALL) + '$')],
+
         states={},
+
+        fallbacks=[
+            CallbackQueryHandler(end_showing, pattern='^' + str(END) + '$'),
+            CommandHandler('stop', stop_nested)
+        ],
+
+        map_to_parent={
+            # Return to second level menu
+            END: SELECT_SHOW,
+            # End conversation alltogether
+            STOP: STOP,
+        }
+    )
+
+    add_member_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(select_show, pattern='^' + str(SHOW) + '$')],
+
+        states={
+            SELECT_SHOW: [show_titles]
+        },
 
         fallbacks=[
             CallbackQueryHandler(end_second_level, pattern='^' + str(END) + '$'),
@@ -117,14 +155,13 @@ def main():
 
     selection_handlers = [
         add_member_conv,
-        CallbackQueryHandler(end, pattern='^' + str(END) + '$'),
+        CallbackQueryHandler(end, pattern='^' + str(END) + '$')
     ]
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
 
         states={
-            SHOW: [CallbackQueryHandler(start, pattern='^' + str(END) + '$')],
             SELECTING_ACTION: selection_handlers,
             SELECT_SHOW: selection_handlers,
             STOP: [CommandHandler('start', start)],
@@ -142,4 +179,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
