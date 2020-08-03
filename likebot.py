@@ -3,16 +3,16 @@ import os
 
 filename = 'my_films.json'
 
-if not os.path.exists('./my_films.json'):
-    film = {'films': []}
-
 
 def write_json(data):
     with open(filename, 'w') as f:
         json.dump(data, f, indent=4)
 
 
-write_json(film)
+if not os.path.exists('./my_films.json'):
+    empty_j = {'films': []}
+    write_json(empty_j)
+
 
 with open(filename, 'r') as uptodatefilms:
     outfilms = json.load(uptodatefilms)
@@ -23,6 +23,7 @@ for k in outfilms['films']:
 
 
 def add_film(title):
+    film = {'films': []}
     film['films'].append({
         'name': title,
         'status': 'todo'
