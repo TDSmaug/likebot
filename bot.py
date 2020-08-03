@@ -17,7 +17,7 @@ TOKEN = open('token.txt', 'r')
 ADD, SHOW, DELETE = map(chr, range(3))
 TYPE, SELECT_SHOW, STOP = map(chr, range(3, 6))
 SHOW_ALL, SHOW_DONE, SHOW_TODO, START_OVER, SELECTING_ACTION, CURRENT_FEATURE, CURRENT_LEVEL = map(chr, range(6, 13))
-FILM_INPUT = map(chr, range(13, 14))
+AFTER_INPUT = map(chr, range(13, 14))
 END = ConversationHandler.END
 
 
@@ -62,21 +62,21 @@ def start(update, context):
         update.callback_query.answer()
         update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
     else:
-        update.message.reply_text('Hi, I\'m S&B bot and here to help manage you film data.')
+        if not context.user_data.get(AFTER_INPUT):
+            update.message.reply_text('Hi, I\'m S&B bot and here to help manage you films.')
+        else:
+            update.message.reply_text('Film has been added!')
         update.message.reply_text(text=text, reply_markup=keyboard)
 
     context.user_data[START_OVER] = False
+    context.user_data[AFTER_INPUT] = False
     return SELECTING_ACTION
 
 
 def ask_add_film(update, context):
     text = 'Please enter film\'s title:'
 
-    # buttons = [[
-    #     InlineKeyboardButton(text='Back', callback_data=str(END))
-    # ]]
-
-    # keyboard = InlineKeyboardMarkup(buttons)
+    context.user_data[START_OVER] = True
 
     update.callback_query.answer()
     update.callback_query.edit_message_text(text=text)
@@ -84,26 +84,27 @@ def ask_add_film(update, context):
     return TYPE
 
 
-def add_film(title):
+def save_input(update, context):
+    context.user_data[START_OVER] = False
+
     outfilms = reader()
+    allnames = []
+
     film = {'films': []}
     film['films'].append({
-        'name': title,
+        'name': update.message.text,
         'status': 'todo'
     })
+
+    for k in outfilms['films']:
+        allnames.append(str(k['name']))
 
     temp = outfilms['films']
     for p in film['films']:
         temp.append(p)
     write_json(outfilms)
 
-
-def save_input(update, context):
-
-    add_film(update.message.text)
-    context.user_data[START_OVER] = True
-
-    return start(update, context)
+    return end_add_level(update, context)
 
 
 def select_show(update, context):
@@ -125,8 +126,15 @@ def select_show(update, context):
 
 
 def end_second_level(update, context):
-    """Return to top level conversation."""
     context.user_data[START_OVER] = True
+    start(update, context)
+
+    return END
+
+
+def end_add_level(update, context):
+    context.user_data[START_OVER] = False
+    context.user_data[AFTER_INPUT] = True
     start(update, context)
 
     return END
@@ -282,7 +290,7 @@ def main():
         entry_points=[CommandHandler('start', start)],
 
         states={
-            ADD: [CallbackQueryHandler(start, pattern='^' + str(END) + '$')],
+            ADD: selection_handlers,
             SELECTING_ACTION: selection_handlers,
             SELECT_SHOW: selection_handlers,
             STOP: [CommandHandler('start', start)],
