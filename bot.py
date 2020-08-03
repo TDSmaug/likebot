@@ -12,8 +12,17 @@ logger = logging.getLogger(__name__)
 TOKEN = open('token.txt', 'r')
 ADD, SHOW, DELETE = map(chr, range(3))
 TYPE, SELECT_SHOW, STOP = map(chr, range(3, 6))
-SHOW_ALL, SHOW_DONE, SHOW_TODO, START_OVER, SELECTING_ACTION, CURRENT_FEATURE = map(chr, range(6, 12))
+SHOW_ALL, SHOW_DONE, SHOW_TODO, START_OVER, SELECTING_ACTION, CURRENT_FEATURE, CURRENT_LEVEL = map(chr, range(6, 13))
 END = ConversationHandler.END
+
+
+def _film_switcher(level):
+    if level == SHOW_ALL:
+        return 'All films'
+    elif level == SHOW_DONE:
+        return 'Seen films'
+    elif level == SHOW_TODO:
+        return 'To see films'
 
 
 def start(update, context):
@@ -68,7 +77,11 @@ def end_second_level(update, context):
 
 
 def show_content(update, context):
-    text = 'Some films:'
+    level = update.callback_query.data
+    context.user_data[CURRENT_LEVEL] = level
+
+    text = _film_switcher(level)
+
     buttons = [[
         InlineKeyboardButton(text='Back', callback_data=str(END))
     ]]
@@ -116,7 +129,8 @@ def main():
     dp = updater.dispatcher
 
     show_titles = ConversationHandler(
-        entry_points=[CallbackQueryHandler(show_content, pattern='^' + str(SHOW_ALL) + '$')],
+        entry_points={CallbackQueryHandler(show_content,
+                                           pattern='^' + str(SHOW_DONE) + '$|^' + str(SHOW_TODO) + '$|^' + str(SHOW_ALL) + '$')},
 
         states={},
 
