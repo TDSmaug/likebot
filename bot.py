@@ -17,7 +17,7 @@ TOKEN = open('token.txt', 'r')
 ADD, SHOW, DELETE = map(chr, range(3))
 TYPE, SELECT_SHOW, STOP = map(chr, range(3, 6))
 SHOW_ALL, SHOW_DONE, SHOW_TODO, START_OVER, SELECTING_ACTION, CURRENT_FEATURE, CURRENT_LEVEL = map(chr, range(6, 13))
-AFTER_INPUT, EXISTS = map(chr, range(13, 17))
+AFTER_INPUT, EXISTS = map(chr, range(13, 15))
 END = ConversationHandler.END
 
 
