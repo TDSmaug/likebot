@@ -17,7 +17,7 @@ TOKEN = open('token.txt', 'r')
 ADD, SHOW, DELETE = map(chr, range(3))
 TYPE, SELECT_SHOW, STOP = map(chr, range(3, 6))
 SHOW_ALL, SHOW_DONE, SHOW_TODO, START_OVER, SELECTING_ACTION, CURRENT_FEATURE, CURRENT_LEVEL = map(chr, range(6, 13))
-AFTER_INPUT = map(chr, range(13, 14))
+AFTER_INPUT, EXISTS, EDIT, SELECT_MANAGE = map(chr, range(13, 17))
 END = ConversationHandler.END
 
 
@@ -47,16 +47,14 @@ def _film_switcher(level):
 
 def start(update, context):
     """Send message on `/start`."""
-    text = 'You may add/delete a film or show existing ones. To abort, simply type /stop.'
-    buttons = [[
-        InlineKeyboardButton(text='Add film', callback_data=str(ADD)),
-        InlineKeyboardButton(text='Delete film', callback_data=str(DELETE))
-    ], [
+    text = 'You may manage film list here. To exit, simply type /stop.'
+    buttons = [
         InlineKeyboardButton(text='Show films', callback_data=str(SHOW)),
-        InlineKeyboardButton(text='Done', callback_data=str(END))
-    ]]
+        InlineKeyboardButton(text='Add film', callback_data=str(ADD)),
+        InlineKeyboardButton(text='Exit', callback_data=str(END))
+    ]
 
-    keyboard = InlineKeyboardMarkup(buttons)
+    keyboard = InlineKeyboardMarkup(build_menu(buttons, n_cols=1))
 
     if context.user_data.get(START_OVER):
         update.callback_query.answer()
@@ -65,18 +63,20 @@ def start(update, context):
         if not context.user_data.get(AFTER_INPUT):
             update.message.reply_text('Hi, I\'m S&B bot and here to help manage you films.')
         else:
-            update.message.reply_text('Film has been added!')
+            if not context.user_data.get(EXISTS):
+                update.message.reply_text('Film has been added!')
+            else:
+                update.message.reply_text('Failed, this film exists. Try again!')
         update.message.reply_text(text=text, reply_markup=keyboard)
 
     context.user_data[START_OVER] = False
     context.user_data[AFTER_INPUT] = False
+    context.user_data[EXISTS] = False
     return SELECTING_ACTION
 
 
 def ask_add_film(update, context):
     text = 'Please enter film\'s title:'
-
-    context.user_data[START_OVER] = True
 
     update.callback_query.answer()
     update.callback_query.edit_message_text(text=text)
@@ -99,10 +99,13 @@ def save_input(update, context):
     for k in outfilms['films']:
         allnames.append(str(k['name']))
 
-    temp = outfilms['films']
-    for p in film['films']:
-        temp.append(p)
-    write_json(outfilms)
+    if update.message.text not in allnames:
+        temp = outfilms['films']
+        for p in film['films']:
+            temp.append(p)
+        write_json(outfilms)
+    else:
+        context.user_data[EXISTS] = True
 
     return end_add_level(update, context)
 
@@ -112,8 +115,8 @@ def select_show(update, context):
     text = 'Choose category:'
     buttons = [
         InlineKeyboardButton(text='All', callback_data=str(SHOW_ALL)),
-        InlineKeyboardButton(text='Watched' + u' (\U00002705)', callback_data=str(SHOW_DONE)),
-        InlineKeyboardButton(text='To Watch' + u' (\U0000274C)', callback_data=str(SHOW_TODO)),
+        InlineKeyboardButton(text=u'\U00002705' + '     Watched', callback_data=str(SHOW_DONE)),
+        InlineKeyboardButton(text=u'\U0000274C' + '     To Watch', callback_data=str(SHOW_TODO)),
         InlineKeyboardButton(text='Back', callback_data=str(END))
     ]
 
@@ -152,16 +155,22 @@ def show_content(update, context):
     for i in outfilms['films']:
         if str(i['status']) == 'done':
             status_button = u'\U00002705'
-            text = 'Watched:'
+            text = 'Tap film to manage.\n' \
+                   'Tap status to change.\n' \
+                   'Watched:'
         elif str(i['status']) == 'todo':
             status_button = u'\U0000274C'
-            text = 'To Watch:'
+            text = 'Tap film to manage.\n' \
+                   'Tap status to change.\n' \
+                   'To Watch:'
         if _film_switcher(level) == str(i['status']):
             button_list.append(InlineKeyboardButton(text=str(i['name']), callback_data=str(i['name'])))
             button_list.append(InlineKeyboardButton(text=str(status_button), callback_data=str(i['status'])))
 
         elif _film_switcher(level) == 'all':
-            text = 'All:'
+            text = 'Tap film to manage.\n' \
+                   'Tap status to change.\n' \
+                   'All:'
             button_list.append(InlineKeyboardButton(text=str(i['name']), callback_data=str(i['name'])))
             button_list.append(InlineKeyboardButton(text=str(status_button), callback_data=str(i['status'])))
 
@@ -173,7 +182,6 @@ def show_content(update, context):
 
     update.callback_query.answer()
     update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-    context.user_data[START_OVER] = True
 
     return SHOW
 
@@ -195,14 +203,14 @@ def end_showing(update, context):
 
 def stop(update, context):
     """End Conversation by command."""
-    update.message.reply_text('Okay, bye.')
+    update.message.reply_text('Okay, bye.\nType /start to back!')
 
     return END
 
 
 def stop_nested(update, context):
     """Completely end conversation from within nested conversation."""
-    update.message.reply_text('Okay, bye.')
+    update.message.reply_text('Okay, bye.\nType /start to back!')
 
     return STOP
 
@@ -211,7 +219,7 @@ def end(update, context):
     """End conversation from InlineKeyboardButton."""
     update.callback_query.answer()
 
-    text = 'See you!'
+    text = 'See you!\nType /start to back!'
     update.callback_query.edit_message_text(text=text)
 
     return END
@@ -235,9 +243,7 @@ def main():
         ],
 
         map_to_parent={
-            # Return to second level menu
             END: SELECT_SHOW,
-            # End conversation alltogether
             STOP: STOP,
         }
     )
@@ -255,9 +261,7 @@ def main():
         ],
 
         map_to_parent={
-            # Return to top level menu
             END: SELECTING_ACTION,
-            # End conversation alltogether
             STOP: END,
         }
     )
